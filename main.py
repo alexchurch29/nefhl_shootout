@@ -20,6 +20,7 @@ def parse_skaters(n=20):
                                                     (skaters['Actual_Conversion_Rate'] * (skaters['Attempts'] / n) +
                                                       league_median * ((n - skaters['Attempts'])/ n)))
     skaters = skaters.sort_values(by=['Estimated_Conversion_Rate'], ascending=False)
+    skaters['SO_Rating'] = 50 + 50 * skaters['Estimated_Conversion_Rate']
 
     # print(skaters)
     skaters.to_csv('skaters_test.csv')
@@ -45,6 +46,7 @@ def parse_goalies(n=80):
                                                     (goalies['Actual_Save_Rate'] * (goalies['Attempts'] / n) +
                                                       league_median * ((n - goalies['Attempts'])/ n)))
     goalies = goalies.sort_values(by=['Estimated_Save_Rate'], ascending=False)
+    goalies['SO_Rating'] = 50 + 50 * goalies['Estimated_Save_Rate']
 
     # print(goalies)
     goalies.to_csv('goalies_test.csv')
@@ -52,5 +54,5 @@ def parse_goalies(n=80):
 
 
 if __name__ == '__main__':
-    # parse_skaters()
-    # parse_goalies()
+    parse_skaters()
+    parse_goalies()
