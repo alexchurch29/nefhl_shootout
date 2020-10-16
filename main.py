@@ -42,7 +42,7 @@ def parse_goalies(n=50):
     goalies = pd.read_csv('goalies.csv')
     # print(goalies['Att.'].sum())
 
-    league_median = goalies['Pct.'].quantile(0.25) / 100
+    league_median = goalies['Pct.'].median() / 100
     goalies = goalies.drop(columns=['Team', 'Made', 'Pct.'])
     goalies = goalies.rename(columns={"Att.": "Attempts", "Miss": "Saves"})
     goalies = goalies.groupby('Player').sum()
@@ -107,6 +107,6 @@ def simulate():
 
 
 if __name__ == '__main__':
-    parse_skaters()
-    parse_goalies()
+    # parse_skaters()
+    # parse_goalies()
     simulate()
