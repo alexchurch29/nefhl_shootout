@@ -3,7 +3,7 @@ import numpy as np
 import random
 
 
-def parse_skaters(n=20):
+def parse_skaters(n=30):
     '''
     parse csv files into pandas dataframes
     :param n: sample size to use for regression
@@ -33,7 +33,7 @@ def parse_skaters(n=20):
     return skaters
 
 
-def parse_goalies(n=80):
+def parse_goalies(n=50):
     '''
     parse csv files into pandas dataframes
     :param n: sample size to use for regression
@@ -42,7 +42,7 @@ def parse_goalies(n=80):
     goalies = pd.read_csv('goalies.csv')
     # print(goalies['Att.'].sum())
 
-    league_median = goalies['Pct.'].median() / 100
+    league_median = goalies['Pct.'].quantile(0.25) / 100
     goalies = goalies.drop(columns=['Team', 'Made', 'Pct.'])
     goalies = goalies.rename(columns={"Att.": "Attempts", "Miss": "Saves"})
     goalies = goalies.groupby('Player').sum()
@@ -107,5 +107,6 @@ def simulate():
 
 
 if __name__ == '__main__':
-    # parse_skaters()
+    parse_skaters()
     parse_goalies()
+    simulate()
