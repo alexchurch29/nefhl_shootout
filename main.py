@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import random
 
+
 def parse_skaters(n=20):
     '''
     parse csv files into pandas dataframes
@@ -16,12 +17,19 @@ def parse_skaters(n=20):
     skaters = skaters.rename(columns={"Att.": "Attempts", "Made": "Goals"})
     skaters = skaters.groupby('Player').sum()
     skaters['Actual_Conversion_Rate'] = skaters['Goals'] / skaters['Attempts']
+    # league_avg = skaters['Goals'].sum() / skaters['Attempts'].sum()
     skaters['Estimated_Conversion_Rate'] = np.where(skaters['Attempts'] >= n, skaters['Actual_Conversion_Rate'],
                                                     (skaters['Actual_Conversion_Rate'] * (skaters['Attempts'] / n) +
                                                       league_median * ((n - skaters['Attempts'])/ n)))
     skaters = skaters.sort_values(by=['Estimated_Conversion_Rate'], ascending=False)
+    max_val = skaters['Estimated_Conversion_Rate'].max()
+    min_val = skaters['Estimated_Conversion_Rate'].min()
+    spread = (max_val - min_val) * 100
+    skaters['SO_Rating'] = 50 + (((skaters['Estimated_Conversion_Rate'] - min_val) * 100) * (49 / spread))
+    print(skaters['SO_Rating'].median())
 
-    # skaters.to_csv('skaters_test.csv')
+    # print(skaters)
+    skaters.to_csv('skaters_test.csv')
     return skaters
 
 
@@ -39,21 +47,36 @@ def parse_goalies(n=80):
     goalies = goalies.rename(columns={"Att.": "Attempts", "Miss": "Saves"})
     goalies = goalies.groupby('Player').sum()
     goalies['Actual_Save_Rate'] = goalies['Saves'] / goalies['Attempts']
+    # league_avg = goalies['Saves'].sum() / goalies['Attempts'].sum()
     goalies['Estimated_Save_Rate'] = np.where(goalies['Attempts'] >= n, goalies['Actual_Save_Rate'],
                                                     (goalies['Actual_Save_Rate'] * (goalies['Attempts'] / n) +
                                                       league_median * ((n - goalies['Attempts'])/ n)))
     goalies = goalies.sort_values(by=['Estimated_Save_Rate'], ascending=False)
+    max_val = goalies['Estimated_Save_Rate'].max()
+    min_val = goalies['Estimated_Save_Rate'].min()
+    spread = (max_val - min_val) * 100
+    goalies['SO_Rating'] = 50 + (((goalies['Estimated_Save_Rate'] - min_val) * 100) * (49 / spread))
+    print(goalies['SO_Rating'].median())
 
-    # goalies.to_csv('goalies_test.csv')
+    # print(goalies)
+    goalies.to_csv('goalies_test.csv')
     return goalies
 
 
-if __name__ == '__main__':
+def simulate():
+    '''
+    simulates individual shootout matchups using a weighted random sample
+    :return:
+    '''
     skaters = parse_skaters()
     goalies = parse_goalies()
 
-    skaters = pd.DataFrame([skaters.ix[idx] for idx in skaters.index for _ in range(int(skaters.ix[idx]['Attempts']))]).reset_index(drop=True)
-    goalies = pd.DataFrame([goalies.ix[idx] for idx in goalies.index for _ in range(int(goalies.ix[idx]['Attempts']))]).reset_index(drop=True)
+    skaters = pd.DataFrame(
+        [skaters.ix[idx] for idx in skaters.index for _ in range(int(skaters.ix[idx]['Attempts']))]).reset_index(
+        drop=True)
+    goalies = pd.DataFrame(
+        [goalies.ix[idx] for idx in goalies.index for _ in range(int(goalies.ix[idx]['Attempts']))]).reset_index(
+        drop=True)
 
     s = skaters.shape[0]
     g = goalies.shape[0]
@@ -63,21 +86,26 @@ if __name__ == '__main__':
 
     for i in range(1000000):
         # print('\n')
-        r1 = random.randint(0, s-1)
-        r2 = random.randint(0, g-1)
+        r1 = random.randint(0, s - 1)
+        r2 = random.randint(0, g - 1)
         skater = skaters.iloc[[r1]]
         goalie = goalies.iloc[[r2]]
         # print(skaters.iloc[r1])
         # print(goalies.iloc[r2])
         # print('xG: ' + str(skaters.iloc[r1][3] / (goalies.iloc[r2][3] + skaters.iloc[r1][3])))
-        p1 = int(skaters.iloc[r1][3]*100)
-        p2 =  int(goalies.iloc[r2][3]*100)
-        r3 = random.randint(1,p1+p2)
+        p1 = int(skaters.iloc[r1][3] * 100)
+        p2 = int(goalies.iloc[r2][3] * 100)
+        r3 = random.randint(1, p1 + p2)
         if r3 <= p1:
             # print("Result: Goal")
-            goals+=1
+            goals += 1
         else:
             # print("Result: No Goal")
-            saves+=1
-        # print('\n')
-    print(goals/(saves+goals))
+            saves += 1
+            # print('\n')
+    print(goals / (saves + goals))
+
+
+if __name__ == '__main__':
+    # parse_skaters()
+    parse_goalies()
