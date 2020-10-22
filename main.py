@@ -6,23 +6,32 @@ import matplotlib.pyplot as plt
 
 def parse_skaters(n=200):
     '''
+
     parse csv files into pandas dataframes
     :param n: sample size to use for regression
     :return:
     '''
-    skaters = pd.read_csv('skaters_raw_data.csv')
+    skaters = pd.read_csv('Players.csv')
     # print(skaters['Att.'].sum())
 
     league_mean = skaters['Made'].sum() / skaters['Att.'].sum()
-    lower_quant = skaters[skaters['Att.']>=10]['Pct.'].quantile(0.2) / 100
+    lower_quant = skaters[skaters['Att.']>=10]['Pct.'].quantile(1/3)
+    upper_quant = skaters[skaters['Att.']>=10]['Pct.'].quantile(2/3)
     skaters = skaters.drop(columns=['Tm', 'Miss', 'Pct.'])
     skaters = skaters.rename(columns={"Att.": "Attempts", "Made": "Goals"})
     skaters = skaters.groupby('Player').sum()
     skaters['Actual_Conversion_Rate'] = skaters['Goals'] / skaters['Attempts']
+    skaters['SOA%'] = skaters['Attempts'] / skaters['Opp.']
+    SOA_threshold= skaters['SOA%'].median()
+    confidence_intervals = pd.read_csv("confidence_intervals_skaters.csv")
     def map(df):
+        lower = confidence_intervals.loc[df['Attempts']][1]
+        upper = confidence_intervals.loc[df['Attempts']][2]
         if df['Attempts'] >= n:
             return df['Actual_Conversion_Rate']
-        elif df['Attempts'] < 10:
+        elif df['Attempts'] >= 10 and df['Actual_Conversion_Rate'] > upper:
+            return (df['Actual_Conversion_Rate'] * (df['Attempts'] / n) + upper_quant * ((n - df['Attempts'])/ n))
+        elif df['SOA%'] < SOA_threshold or df['Attempts'] < 4 or (df['Attempts'] >=10 and df['Actual_Conversion_Rate'] < lower):
             return (df['Actual_Conversion_Rate'] * (df['Attempts'] / n) + lower_quant * ((n - df['Attempts'])/ n))
         else:
             return (df['Actual_Conversion_Rate'] * (df['Attempts'] / n) + league_mean * ((n - df['Attempts'])/ n))
@@ -35,9 +44,11 @@ def parse_skaters(n=200):
 
     skaters['Estimated_Conversion_Rate1'] = (skaters['Estimated_Conversion_Rate'] * (1 - league_mean)) / (1 - skaters['Estimated_Conversion_Rate'])
 
-    # skaters.to_csv('skaters_test_n_equalto_' + str(n) + '.csv')
-    # skaters1 = skaters[['Attempts', 'Goals', 'Actual_Conversion_Rate', 'SO_Rating']]
+    # skaters1 = skaters[['Opp.', 'Attempts', 'SOA%', 'Goals', 'Actual_Conversion_Rate', 'Estimated_Conversion_Rate', 'SO_Rating']]
     # skaters1.to_csv('skater_ratings.csv')
+    skaters = skaters.drop(columns=['SOA%', 'Opp.'])
+    # skaters.to_csv('skaters_test_n_equalto_' + str(n) + '.csv')
+
     return skaters
 
 
@@ -51,11 +62,13 @@ def parse_goalies(n=200):
     # print(goalies['Att.'].sum())
 
     league_mean = goalies['Miss'].sum() / goalies['Att.'].sum()
-    lower_quant = goalies[goalies['Att.']>=10]['Pct.'].quantile(.2) / 100
+    lower_quant = goalies[goalies['Att.']>=10]['Pct.'].quantile(1/3) / 100
     goalies = goalies.drop(columns=['Team', 'Made', 'Pct.'])
     goalies = goalies.rename(columns={"Att.": "Attempts", "Miss": "Saves"})
     goalies = goalies.groupby('Player').sum()
     goalies['Actual_Save_Rate'] = goalies['Saves'] / goalies['Attempts']
+    # confidence_intervals = pd.read_csv("confidence_intervals_goalies.csv")
+
     def map(df):
         if df['Attempts'] >= n:
             return df['Actual_Save_Rate']
@@ -72,9 +85,10 @@ def parse_goalies(n=200):
 
     goalies['Estimated_Save_Rate1'] = (goalies['Estimated_Save_Rate'] * (1 - league_mean)) / (1 - goalies['Estimated_Save_Rate'])
 
-    goalies.to_csv('goalies_test_n_equalto_' + str(n) + '.csv')
-    skaters1 = goalies[['Attempts', 'Saves', 'Actual_Save_Rate', 'SO_Rating']]
-    skaters1.to_csv('goalie_ratings.csv')
+    # goalies.to_csv('goalies_test_n_equalto_' + str(n) + '.csv')
+    # skaters1 = goalies[['Attempts', 'Saves', 'Actual_Save_Rate', 'Estimated_Save_Rate', 'SO_Rating']]
+    # skaters1.to_csv('goalie_ratings.csv')
+
     return goalies
 
 
@@ -83,8 +97,8 @@ def simulate(type=0, n=10000):
     simulates individual shootout matchups using a weighted random sample
     :return:
     '''
-    skaters = parse_skaters()
-    goalies = parse_goalies()
+    skaters = pd.read_csv("skaters_test_n_equalto_200.csv")
+    goalies = pd.read_csv("goalies_test_n_equalto_200.csv")
 
     skaters = pd.DataFrame(
         [skaters.loc[idx] for idx in skaters.index for _ in range(int(skaters.loc[idx]['Attempts']))]).reset_index(
@@ -110,8 +124,8 @@ def simulate(type=0, n=10000):
             # print(skaters.iloc[r1])
             # print(goalies.iloc[r2])
             # print('xG: ' + str(skaters.iloc[r1][5] / (goalies.iloc[r2][5] + skaters.iloc[r1][5])))
-            p1 = int(skaters.iloc[r1][5] * 100)
-            p2 = int(goalies.iloc[r2][5] * 100)
+            p1 = int(skaters.iloc[r1][6] * 100)
+            p2 = int(goalies.iloc[r2][6] * 100)
             r3 = random.randint(1, p1 + p2)
             if r3 <= p1:
                 # print("Result: Goal")
@@ -138,8 +152,8 @@ def simulate(type=0, n=10000):
             goalie = goalies.iloc[[r2]]
             # print(goalies.iloc[r2])
             # print('xG: ' + str(skaters.iloc[r1][3] / (goalies.iloc[r2][3] + skaters.iloc[r1][3])))
-            p1 = int(skaters.iloc[r1][5] * 100)
-            p2 = int(goalies.iloc[r2][5] * 100)
+            p1 = int(skaters.iloc[r1][6] * 100)
+            p2 = int(goalies.iloc[r2][6] * 100)
             r3 = random.randint(1, p1 + p2)
             if r3 <= p1:
                 # print("Result: Goal")
@@ -165,8 +179,8 @@ def simulate(type=0, n=10000):
             goalie = goalies.iloc[[r2]]
             # print(skaters.iloc[r1])
             # print('xG: ' + str(skaters.iloc[r1][3] / (goalies.iloc[r2][3] + skaters.iloc[r1][3])))
-            p1 = int(skaters.iloc[r1][5] * 100)
-            p2 = int(goalies.iloc[r2][5] * 100)
+            p1 = int(skaters.iloc[r1][6] * 100)
+            p2 = int(goalies.iloc[r2][6] * 100)
             r3 = random.randint(1, p1 + p2)
             if r3 <= p1:
                 # print("Result: Goal")
@@ -178,11 +192,11 @@ def simulate(type=0, n=10000):
         print(saves / (saves + goals))
 
 
-def confidence_interval_skaters(name, n=1000000, avg=False, att = 50, confidence=0.95):
+def confidence_interval_skaters(name="Frans Nielsen", n=1000, avg=True, att = 50, confidence=0.95):
     '''
     :return:
     '''
-    goalies = parse_goalies()
+    goalies = pd.read_csv('goalies_test_n_equalto_200.csv')
     goalies = pd.DataFrame(
         [goalies.loc[idx] for idx in goalies.index for _ in range(int(goalies.loc[idx]['Attempts']))]).reset_index(
         drop=True)
@@ -205,7 +219,7 @@ def confidence_interval_skaters(name, n=1000000, avg=False, att = 50, confidence
                 p1 = int(skater[5] * 100)
             else:
                 p1 = int(p * 100)
-            p2 = int(goalies.iloc[r2][5] * 100)
+            p2 = int(goalies.iloc[r2][6] * 100)
             r3 = random.randint(1, p1 + p2)
             if r3 <= p1:
                 goals += 1
@@ -222,18 +236,33 @@ def confidence_interval_skaters(name, n=1000000, avg=False, att = 50, confidence
         conf_int_a = stats.norm.interval(confidence, loc=mean, scale=sigma)
         return conf_int_a
 
+    def find_bin_idx_of_value(bins, value):
+        """Finds the bin which the value corresponds to."""
+        array = np.asarray(value)
+        idx = np.digitize(array, bins)
+        return idx - 1
+
+    def area_after_val(counts, bins, val):
+        """Calculates the area of the hist after a certain value"""
+        left_bin_edge_index = find_bin_idx_of_value(bins, val)
+        bin_width = np.diff(bins)[0]
+        area = sum(bin_width * counts[left_bin_edge_index:])
+        return area
+
+    # print(area_after_val(values, bins, 7 / 23))
+
     ci = mean_confidence_interval(distribution)
-    print(str(ci[0]) + ", " + str(ci[1]))
-    plt.show()
+    # print(str(ci[0]) + ", " + str(ci[1]))
+    # plt.show()
 
-    return distribution
+    return ci[0], ci[1]
 
 
-def confidence_interval_goalies(name, n=1000000, avg=False, att = 50, confidence=0.95):
+def confidence_interval_goalies(name, n=1000, avg=True, att = 50, confidence=0.95):
     '''
     :return:
     '''
-    skaters = parse_skaters()
+    skaters = pd.read_csv('skaters_test_n_equalto_200.csv')
     skaters = pd.DataFrame(
         [skaters.loc[idx] for idx in skaters.index for _ in range(int(skaters.loc[idx]['Attempts']))]).reset_index(
         drop=True)
@@ -256,7 +285,7 @@ def confidence_interval_goalies(name, n=1000000, avg=False, att = 50, confidence
                 p1 = int(goalie[5] * 100)
             else:
                 p1 = int(p * 100)
-            p2 = int(skaters.iloc[r2][5] * 100)
+            p2 = int(skaters.iloc[r2][6] * 100)
             r3 = random.randint(1, p1 + p2)
             if r3 <= p1:
                 saves += 1
@@ -274,14 +303,19 @@ def confidence_interval_goalies(name, n=1000000, avg=False, att = 50, confidence
         return conf_int_a
 
     ci = mean_confidence_interval(distribution)
-    print(str(ci[0]) + ", " + str(ci[1]))
-    plt.show()
+    # print(str(ci[0]) + ", " + str(ci[1]))
+    # plt.show()
 
-    return distribution
+    return ci[0], ci[1]
 
 
 if __name__ == '__main__':
-    # parse_skaters()
+    parse_skaters()
     # parse_goalies()
     # simulate(type=2)
-    confidence_interval_skaters('David Pastrnak\pastrda01', n = 1000, avg=False, att=200, confidence=0.9)
+    # df = pd.DataFrame(columns=('Lower', 'Upper'))
+    # for i in range(4,6):
+    #     print(i)
+    #     lower, upper = confidence_interval_skaters(att=i)
+    #     df.loc[i] = [lower, upper]
+    # df.to_csv("confidence_intervals_skaters.csv")
